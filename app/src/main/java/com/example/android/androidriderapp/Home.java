@@ -15,8 +15,13 @@ import android.support.v7.widget.Toolbar;
 import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
+import android.view.View;
+import android.view.View.OnClickListener;
+import android.widget.Button;
+import android.widget.ImageView;
 import android.widget.Toast;
 
+import com.example.android.androidriderapp.Helper.CustomInfoWindow;
 import com.firebase.geofire.GeoFire;
 import com.firebase.geofire.GeoLocation;
 import com.google.android.gms.common.ConnectionResult;
@@ -28,6 +33,7 @@ import com.google.android.gms.maps.CameraUpdateFactory;
 import com.google.android.gms.maps.GoogleMap;
 import com.google.android.gms.maps.OnMapReadyCallback;
 import com.google.android.gms.maps.SupportMapFragment;
+import com.google.android.gms.maps.model.BitmapDescriptorFactory;
 import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.Marker;
 import com.google.android.gms.maps.model.MarkerOptions;
@@ -63,6 +69,12 @@ public class Home extends AppCompatActivity
 
     Marker mUserMarker;
 
+    // BottomSheet
+
+    ImageView imgExpandable;
+    BottomSheetRiderFragment mBottomSheet;
+    Button btnPickupRequest;
+
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -90,6 +102,42 @@ public class Home extends AppCompatActivity
 
         setUpLocation();
 
+        // Inicializamos
+        imgExpandable = (ImageView)findViewById(R.id.imgExpandable);
+        mBottomSheet = BottomSheetRiderFragment.newInstance("Rider bottom sheet");
+        imgExpandable.setOnClickListener(new OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                mBottomSheet.show(getSupportFragmentManager(), mBottomSheet.getTag());
+            }
+        });
+
+        btnPickupRequest = (Button) findViewById(R.id.btnPickupRequest);
+        btnPickupRequest.setOnClickListener(new OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                requestPickupHere(FirebaseAuth.getInstance().getCurrentUser().getUid());
+            }
+        });
+
+    }
+
+    private void requestPickupHere(String uid) {
+        DatabaseReference dbRequest = FirebaseDatabase.getInstance().getReference("PickupRequest");
+        GeoFire mGeoFire = new GeoFire(dbRequest);
+        mGeoFire.setLocation(uid, new GeoLocation(mLastLocation.getLatitude(),mLastLocation.getLongitude()));
+
+        if (mUserMarker.isVisible())
+            mUserMarker.remove();
+        //Añadimos un nuevo marcador
+        mUserMarker = mMap.addMarker(new MarkerOptions()
+                            .title("LUGAR DE RECOGIDA")
+                            .snippet("")
+                            .position(new LatLng(mLastLocation.getLatitude(),mLastLocation.getLongitude()))
+                            .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_RED)));
+        mUserMarker.showInfoWindow();
+
+        btnPickupRequest.setText("Consiguiéndote un CONDUCTOR...");
     }
 
     @Override
@@ -252,6 +300,10 @@ public class Home extends AppCompatActivity
     public void onMapReady(GoogleMap googleMap) {
 
         mMap = googleMap;
+        mMap.getUiSettings().setZoomControlsEnabled(true);
+        mMap.getUiSettings().setZoomGesturesEnabled(true);
+        mMap.setInfoWindowAdapter(new CustomInfoWindow(this));
+
 
     }
 
