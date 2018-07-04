@@ -14,6 +14,7 @@ import android.view.View;
 import android.widget.Button;
 import android.widget.RelativeLayout;
 
+import com.example.android.androidriderapp.Common.Common;
 import com.example.android.androidriderapp.Model.Rider;
 import com.google.android.gms.tasks.OnFailureListener;
 import com.google.android.gms.tasks.OnSuccessListener;
@@ -59,7 +60,7 @@ public class MainActivity extends AppCompatActivity {
         // Inicializar Firebase
         auth = FirebaseAuth.getInstance();
         db = FirebaseDatabase.getInstance();
-        users = db.getReference("Riders");
+        users = db.getReference(Common.rider_info_tbl);
 
         // Inicializar la View
         btnRegister = (Button)findViewById(R.id.btnRegister);
