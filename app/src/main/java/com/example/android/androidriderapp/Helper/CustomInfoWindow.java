@@ -28,7 +28,7 @@ public class CustomInfoWindow implements GoogleMap.InfoWindowAdapter {
         txtPickupTitle.setText(marker.getTitle());
 
         TextView txtPickupSnippet = (TextView)myView.findViewById(R.id.txtPickupSnippet);
-        txtPickupSnippet.setText(marker.getTitle());
+        txtPickupSnippet.setText(marker.getSnippet());
 
         return myView;
     }

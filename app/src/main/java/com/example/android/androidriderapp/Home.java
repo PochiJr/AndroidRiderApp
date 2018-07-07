@@ -23,7 +23,12 @@ import android.widget.Toast;
 
 import com.example.android.androidriderapp.Common.Common;
 import com.example.android.androidriderapp.Helper.CustomInfoWindow;
+import com.example.android.androidriderapp.Model.FCMResponse;
+import com.example.android.androidriderapp.Model.Notification;
 import com.example.android.androidriderapp.Model.Rider;
+import com.example.android.androidriderapp.Model.Sender;
+import com.example.android.androidriderapp.Model.Token;
+import com.example.android.androidriderapp.Remote.IFCMService;
 import com.firebase.geofire.GeoFire;
 import com.firebase.geofire.GeoLocation;
 import com.firebase.geofire.GeoQuery;
@@ -47,6 +52,12 @@ import com.google.firebase.database.DatabaseError;
 import com.google.firebase.database.DatabaseReference;
 import com.google.firebase.database.FirebaseDatabase;
 import com.google.firebase.database.ValueEventListener;
+import com.google.firebase.iid.FirebaseInstanceId;
+import com.google.gson.Gson;
+
+import retrofit2.Call;
+import retrofit2.Callback;
+import retrofit2.Response;
 
 public class Home extends AppCompatActivity
         implements NavigationView.OnNavigationItemSelectedListener,
@@ -87,6 +98,9 @@ public class Home extends AppCompatActivity
     int distance = 1; // 1km
     private static final int LIMIT = 3; //3km
 
+    // Enviar alerta
+    IFCMService mService;
+
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -94,6 +108,8 @@ public class Home extends AppCompatActivity
         setContentView(R.layout.activity_home);
         Toolbar toolbar = (Toolbar) findViewById(R.id.toolbar);
         setSupportActionBar(toolbar);
+
+        mService = Common.getFCMService();
 
         DrawerLayout drawer = (DrawerLayout) findViewById(R.id.drawer_layout);
         ActionBarDrawerToggle toggle = new ActionBarDrawerToggle(
@@ -109,7 +125,7 @@ public class Home extends AppCompatActivity
         mapFragment.getMapAsync(this);
 
 
-        setUpLocation();
+
 
         // Inicializamos
         imgExpandable = (ImageView) findViewById(R.id.imgExpandable);
@@ -125,10 +141,75 @@ public class Home extends AppCompatActivity
         btnPickupRequest.setOnClickListener(new OnClickListener() {
             @Override
             public void onClick(View view) {
-                requestPickupHere(FirebaseAuth.getInstance().getCurrentUser().getUid());
+                if (!isDriverFound) // Si no encontramos conductores creamos un lugar de recogida, pero sin llamada, hasta nuevo aviso
+                    requestPickupHere(FirebaseAuth.getInstance().getCurrentUser().getUid());
+                else // Si encontramos conductor lo llamamos
+                    sendRequestToDriver(driverId);
             }
         });
 
+        setUpLocation();
+
+        updateFirebaseToken();
+
+    }
+
+    private void updateFirebaseToken() {
+        FirebaseDatabase db = FirebaseDatabase.getInstance();
+        DatabaseReference tokens = db.getReference(Common.token_tbl);
+
+        Token token = new Token(FirebaseInstanceId.getInstance().getToken());
+
+        if (FirebaseAuth.getInstance().getCurrentUser() != null) // Actualizaremos el elemento Token cuando el usuario ya tenga una cuenta
+            tokens.child(FirebaseAuth.getInstance().getCurrentUser().getUid())
+                    .setValue(token);
+    }
+
+
+    private void sendRequestToDriver(String driverId) {
+        DatabaseReference tokens = FirebaseDatabase.getInstance().getReference(Common.token_tbl);
+
+        tokens.orderByKey().equalTo(driverId)
+                .addListenerForSingleValueEvent(new ValueEventListener() {
+                    @Override
+                    public void onDataChange(DataSnapshot dataSnapshot) {
+                        for (DataSnapshot postSnapshot:dataSnapshot.getChildren()){
+                            Token token = postSnapshot.getValue(Token.class); // Obtenemos Token de la base de datos con la key
+
+                            // Creamos nueva payload (Para Jesús del futuro, esto es: carga útil, ell mensaje, crudo, sin título ni nada)
+                            // Serializamos LatLng a JSON
+                            String json_lat_lng = new Gson().toJson(new LatLng(mLastLocation.getLatitude(),mLastLocation.getLongitude()));
+
+                            Notification data = new Notification("JESÚS",json_lat_lng); // Esto es lo que envimos al conductor y su propia App
+                                                                                             // se encargará de deserializarlo
+
+                            Sender content = new Sender(token.getToken(), data); // aquí se realiza el envío
+
+                            mService.sendMessage(content)
+                                    .enqueue(new Callback<FCMResponse>() {
+                                        @Override
+                                        public void onResponse(Call<FCMResponse> call, Response<FCMResponse> response) {
+                                            if (response.body().success == 1)
+                                                Toast.makeText(Home.this, "Petición enviada", Toast.LENGTH_SHORT).show();
+                                            else
+                                                Toast.makeText(Home.this, "Petición fallida", Toast.LENGTH_SHORT).show();
+                                        }
+
+                                        @Override
+                                        public void onFailure(Call<FCMResponse> call, Throwable t) {
+                                            Log.e("ERROR: ",t.getMessage());
+
+                                        }
+                                    });
+
+                        }
+                    }
+
+                    @Override
+                    public void onCancelled(DatabaseError databaseError) {
+
+                    }
+                });
     }
 
     private void requestPickupHere(String uid) {
