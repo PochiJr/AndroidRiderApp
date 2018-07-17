@@ -101,6 +101,9 @@ public class Home extends AppCompatActivity
     // Enviar alerta
     IFCMService mService;
 
+    // Sistema de detección de presencia (para comrpobar tu estado online u offline)
+    DatabaseReference driversAvailable;
+
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -123,8 +126,6 @@ public class Home extends AppCompatActivity
         // Maps
         mapFragment = (SupportMapFragment) getSupportFragmentManager().findFragmentById(R.id.map);
         mapFragment.getMapAsync(this);
-
-
 
 
         // Inicializamos
@@ -320,6 +321,21 @@ public class Home extends AppCompatActivity
         mLastLocation = LocationServices.FusedLocationApi.getLastLocation(mGoogleApiClient);
         if (mLastLocation != null) {
 
+            // Sistema de detección de presencia
+            driversAvailable = FirebaseDatabase.getInstance().getReference(Common.driver_tbl);
+            driversAvailable.addValueEventListener(new ValueEventListener() {
+                @Override
+                public void onDataChange(DataSnapshot dataSnapshot) {
+                    // Si ocurre algún cambio en nuestra base de datos de conductores los cargaríamos todos de nuevo
+                    loadAllAvailableDrivers();
+                }
+
+                @Override
+                public void onCancelled(DatabaseError databaseError) {
+
+                }
+            });
+
             final double latitude = mLastLocation.getLatitude();
             final double longitude = mLastLocation.getLongitude();
 
@@ -343,6 +359,13 @@ public class Home extends AppCompatActivity
     }
 
     private void loadAllAvailableDrivers() {
+
+        mMap.clear();
+        mMap.addMarker(new MarkerOptions().position(new LatLng(mLastLocation.getLatitude(),mLastLocation.getLongitude()))
+                            .title("Tú"));
+
+
+
         // Cargar todos los conductores en 3km de distancia
         DatabaseReference driverLocation = FirebaseDatabase.getInstance().getReference(Common.driver_tbl);
         GeoFire gf = new GeoFire(driverLocation);
